@@ -1,31 +1,36 @@
-from fastapi import FastAPI, UploadFile, File
-import pandas as pd
-import io
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-def normalize(val):
-    return str(val).strip().lower()
+@app.post("/process")
+async def process_resource(request: Request):
+    try:
+        data = await request.json()
 
-@app.post("/evaluate-resources")
-async def evaluate_resources(resource_file: UploadFile = File(...)):
-    content = await resource_file.read()
-    resource_df = pd.read_excel(io.BytesIO(content))
-    learn_df = pd.read_excel("Azure_Resource_Move_Matrix_v2.xlsx")
+        resource_type = data.get("resourceType")
+        subscription = data.get("subscription")
 
-    resource_df["norm"] = resource_df["RESOURCE TYPE"].apply(normalize)
-    learn_df["norm"] = learn_df["Resource Type"].apply(normalize)
+        if not resource_type:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "resourceType missing"}
+            )
 
-    lookup = dict(zip(learn_df["norm"], learn_df["Subscription"]))
+        # 🔥 Dummy processing (yahin logic add karega)
+        result = {
+            "resourceType": resource_type,
+            "subscription": subscription,
+            "moveSupported": resource_type != "Microsoft.AAD/domainservices"
+        }
 
-    results = []
-    for _, row in resource_df.iterrows():
-        results.append({
-            "Resource Type": row["RESOURCE TYPE"],
-            "Can Be moved": lookup.get(row["norm"], "Unknown")
-        })
+        return {
+            "status": "success",
+            "result": result
+        }
 
-    return {
-        "count": len(results),
-        "results": results
-    }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
